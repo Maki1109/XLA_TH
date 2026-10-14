@@ -8,7 +8,6 @@ DFT, DCT và lọc ảnh trong miền tần số, tự cài đặt (không dùng
 | `bai2_dct_idct.py` | Bài 2: DCT/IDCT khối 8x8, bỏ 50/75/90% hệ số |
 | `bai3_loc_ideal.py` | Bài 3: lọc Ideal thông thấp/thông cao (import Bài 1) |
 | `bai4_so_sanh_bo_loc.py` | Bài 4: so sánh Ideal, Gaussian, Butterworth (import Bài 1, 3) |
-| `main.tex` | Báo cáo (LaTeX); ảnh `bai*.jpg`, `logo.png` cùng thư mục |
 | `results/` | Hình kết quả (PNG gốc) |
 
 Chạy (cần `numpy`, `matplotlib`, `pillow`):
