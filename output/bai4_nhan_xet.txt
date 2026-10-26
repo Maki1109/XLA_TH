@@ -1,0 +1,67 @@
+===== a. Harris vs SIFT / ORB =====
+Harris   :   546 điểm, phủ  76.6% lưới 8x8,    6.86 ms
+SIFT     :  2045 điểm, phủ  90.6% lưới 8x8,   60.35 ms
+ORB(500) :   500 điểm, phủ  40.6% lưới 8x8,   15.04 ms
+Kích thước (scale) keypoint SIFT: 1.8 - 147.9 px, ORB: 31.0 - 111.1 px (Harris: 1 tỉ lệ duy nhất)
+% điểm Harris có điểm SIFT trong 5px: 67.2%
+% điểm Harris có điểm ORB  trong 5px: 15.9%
+
+===== b. SIFT vs ORB =====
+SIFT      : 2045 kp, descriptor (2045, 128) float32 (1022 KB), 60.35 ms
+ORB(500)  : 500 kp, descriptor (500, 32) uint8 (16 KB), 15.04 ms
+ORB(2045) : 2045 kp, descriptor (2045, 32) uint8 (64 KB), 12.56 ms
+=> Cùng số điểm, ORB nhanh hơn SIFT khoảng 4.8 lần
+
+===== c. Ratio Test (ORB + BFMatcher, đếm cặp đúng bằng homography thật) =====
+không lọc :  2000 cặp,  1083 đúng, độ chính xác  54.1%
+ratio<0.9 :  1173 cặp,   864 đúng, độ chính xác  73.7%
+ratio<0.8 :   750 cặp,   633 đúng, độ chính xác  84.4%
+ratio<0.75:   604 cặp,   539 đúng, độ chính xác  89.2%
+ratio<0.7 :   495 cặp,   450 đúng, độ chính xác  90.9%
+ratio<0.6 :   320 cặp,   306 đúng, độ chính xác  95.6%
+ratio<0.5 :   164 cặp,   160 đúng, độ chính xác  97.6%
+crossCheck:   878 cặp,   677 đúng, độ chính xác  77.1%
+
+NHẬN XÉT VÀ PHÂN TÍCH
+
+a) Harris và SIFT/ORB
+- Số lượng: Harris chỉ cho các điểm có đáp ứng R vượt ngưỡng (1% R max) sau khi loại bỏ
+  điểm không cực đại, nên số điểm phụ thuộc mạnh vào ngưỡng. SIFT cho nhiều điểm nhất vì
+  nó tìm cực trị trong không gian tỉ lệ (DoG) ở nhiều octave. ORB bị giới hạn bởi nfeatures.
+- Vị trí: Harris chỉ phản hồi tại GÓC thực sự (giao điểm hai cạnh): các đỉnh ô bàn cờ, góc
+  chữ cái ở viền, đồ vật trên bàn. Tại cạnh thẳng hoặc vùng phẳng, Harris không phản hồi.
+  SIFT phát hiện "đốm" (blob) ở nhiều kích thước: ngoài góc còn có tâm ô cờ, vân đá, vân gỗ,
+  nên điểm phủ rộng hơn, kể cả vùng có kết cấu (texture) mà không có góc rõ.
+  Khoảng 2/3 góc Harris có điểm SIFT nằm sát (<= 5px), nghĩa là SIFT gần như bao trùm các góc
+  của Harris và còn thêm nhiều điểm khác.
+  ORB dùng FAST rồi xếp hạng bằng điểm Harris, nhưng chỉ giữ 500 điểm mạnh nhất và tìm trên
+  kim tự tháp ảnh thu nhỏ, nên điểm dồn cục ở vùng tương phản mạnh (ô cờ, chữ cái ở viền),
+  độ phủ ảnh thấp nhất và chỉ ít điểm trùng đúng vị trí góc Harris ở tỉ lệ gốc.
+- Harris chỉ cho toạ độ, không có tỉ lệ, hướng hay descriptor nên không dùng trực tiếp để
+  đối sánh được; SIFT/ORB cho mỗi điểm thêm scale, hướng và vector mô tả.
+- Harris tự xây dựng (Sobel -> tích đạo hàm -> tổng cửa sổ -> R = det - k*trace^2) cho bản
+  đồ R trùng với cv2.cornerHarris (sai khác ~1e-7) và cùng tập góc; bản có sẵn nhanh hơn vì
+  được tối ưu bằng C++/SIMD.
+
+b) SIFT và ORB
+- Trên cùng ảnh, SIFT cho nhiều đặc trưng hơn (ORB mặc định dừng ở 500 điểm).
+- Descriptor SIFT: 128 số thực float32 (512 byte/điểm), so khớp bằng khoảng cách L2.
+  Descriptor ORB: 32 byte nhị phân (256 bit), so khớp bằng Hamming (XOR + đếm bit) nên rất
+  nhanh và nhẹ hơn 16 lần về bộ nhớ.
+- Tốc độ: ORB nhanh hơn SIFT rõ rệt, kể cả khi cho ORB lấy cùng số điểm như SIFT.
+  SIFT phải dựng kim tự tháp Gauss/DoG và tính histogram gradient; ORB dùng FAST và so sánh
+  cặp điểm ảnh (BRIEF), phù hợp ứng dụng thời gian thực / thiết bị yếu.
+- Đổi lại SIFT ổn định hơn với thay đổi tỉ lệ, góc nhìn và độ sáng, descriptor giàu thông
+  tin hơn nên đối sánh chính xác hơn trong điều kiện khó.
+
+c) Vai trò của Ratio Test (Lowe)
+- Với mỗi điểm, so sánh khoảng cách tới láng giềng gần nhất (d1) và gần nhì (d2). Nếu
+  d1 < ratio * d2 thì cặp khớp được xem là "đặc trưng riêng biệt", được giữ lại; nếu d1 ~ d2
+  thì điểm đó mơ hồ (nhiều chỗ trong ảnh trông giống nhau) và bị loại.
+- Ảnh bàn cờ có cấu trúc lặp lại (các ô giống nhau) nên rất nhiều cặp khớp nhầm sang ô bên
+  cạnh: nếu bỏ qua bước lọc, mọi điểm đều có một cặp (kể cả điểm không xuất hiện trong ảnh
+  2), số đường nối rất nhiều, chồng chéo, tỉ lệ cặp sai cao -> ước lượng homography/ghép ảnh
+  dễ sai hoặc RANSAC phải chạy lâu hơn.
+- Khi áp dụng Ratio Test, số cặp giảm mạnh nhưng độ chính xác tăng lên rõ rệt. Ratio càng
+  nhỏ càng chặt (ít cặp, chính xác hơn), ratio lớn thì giữ nhiều cặp nhưng lẫn nhiễu;
+  0.7-0.8 là mức cân bằng thường dùng.
