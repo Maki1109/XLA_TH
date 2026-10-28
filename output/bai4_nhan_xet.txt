@@ -1,26 +1,26 @@
 ===== a. Harris vs SIFT / ORB =====
-Harris   :   546 điểm, phủ  76.6% lưới 8x8,    6.86 ms
-SIFT     :  2045 điểm, phủ  90.6% lưới 8x8,   60.35 ms
-ORB(500) :   500 điểm, phủ  40.6% lưới 8x8,   15.04 ms
-Kích thước (scale) keypoint SIFT: 1.8 - 147.9 px, ORB: 31.0 - 111.1 px (Harris: 1 tỉ lệ duy nhất)
-% điểm Harris có điểm SIFT trong 5px: 67.2%
-% điểm Harris có điểm ORB  trong 5px: 15.9%
+Harris   :    74 điểm, phủ  34.4% lưới 8x8,    3.85 ms
+SIFT     :   615 điểm, phủ  85.9% lưới 8x8,   32.58 ms
+ORB(500) :   500 điểm, phủ  40.6% lưới 8x8,   14.02 ms
+Kích thước (scale) keypoint SIFT: 1.8 - 69.0 px, ORB: 31.0 - 111.1 px (Harris: 1 tỉ lệ duy nhất)
+% điểm Harris có điểm SIFT trong 5px: 78.4%
+% điểm Harris có điểm ORB  trong 5px: 68.9%
 
 ===== b. SIFT vs ORB =====
-SIFT      : 2045 kp, descriptor (2045, 128) float32 (1022 KB), 60.35 ms
-ORB(500)  : 500 kp, descriptor (500, 32) uint8 (16 KB), 15.04 ms
-ORB(2045) : 2045 kp, descriptor (2045, 32) uint8 (64 KB), 12.56 ms
-=> Cùng số điểm, ORB nhanh hơn SIFT khoảng 4.8 lần
+SIFT      : 615 kp, descriptor (615, 128) float32 (308 KB), 32.58 ms
+ORB(500)  : 500 kp, descriptor (500, 32) uint8 (16 KB), 14.02 ms
+ORB(615) : 615 kp, descriptor (615, 32) uint8 (19 KB), 12.55 ms
+=> Cùng số điểm, ORB nhanh hơn SIFT khoảng 2.6 lần
 
-===== c. Ratio Test (ORB + BFMatcher, đếm cặp đúng bằng homography thật) =====
-không lọc :  2000 cặp,  1083 đúng, độ chính xác  54.1%
-ratio<0.9 :  1173 cặp,   864 đúng, độ chính xác  73.7%
-ratio<0.8 :   750 cặp,   633 đúng, độ chính xác  84.4%
-ratio<0.75:   604 cặp,   539 đúng, độ chính xác  89.2%
-ratio<0.7 :   495 cặp,   450 đúng, độ chính xác  90.9%
-ratio<0.6 :   320 cặp,   306 đúng, độ chính xác  95.6%
-ratio<0.5 :   164 cặp,   160 đúng, độ chính xác  97.6%
-crossCheck:   878 cặp,   677 đúng, độ chính xác  77.1%
+===== c. Ratio Test (IMG_2817/IMG_2818, ORB + BFMatcher, đếm cặp đúng bằng homography tham chiếu) =====
+không lọc :  1979 cặp,  1184 đúng, độ chính xác  59.8%
+ratio<0.9 :  1212 cặp,   905 đúng, độ chính xác  74.7%
+ratio<0.8 :   757 cặp,   654 đúng, độ chính xác  86.4%
+ratio<0.75:   588 cặp,   530 đúng, độ chính xác  90.1%
+ratio<0.7 :   460 cặp,   425 đúng, độ chính xác  92.4%
+ratio<0.6 :   249 cặp,   237 đúng, độ chính xác  95.2%
+ratio<0.5 :    98 cặp,    95 đúng, độ chính xác  96.9%
+crossCheck:   915 cặp,   744 đúng, độ chính xác  81.3%
 
 NHẬN XÉT VÀ PHÂN TÍCH
 
@@ -58,10 +58,11 @@ c) Vai trò của Ratio Test (Lowe)
 - Với mỗi điểm, so sánh khoảng cách tới láng giềng gần nhất (d1) và gần nhì (d2). Nếu
   d1 < ratio * d2 thì cặp khớp được xem là "đặc trưng riêng biệt", được giữ lại; nếu d1 ~ d2
   thì điểm đó mơ hồ (nhiều chỗ trong ảnh trông giống nhau) và bị loại.
-- Ảnh bàn cờ có cấu trúc lặp lại (các ô giống nhau) nên rất nhiều cặp khớp nhầm sang ô bên
-  cạnh: nếu bỏ qua bước lọc, mọi điểm đều có một cặp (kể cả điểm không xuất hiện trong ảnh
-  2), số đường nối rất nhiều, chồng chéo, tỉ lệ cặp sai cao -> ước lượng homography/ghép ảnh
-  dễ sai hoặc RANSAC phải chạy lâu hơn.
+- Cảnh IMG_2817/IMG_2818 có rất nhiều chấm tròn giống nhau, hình tròn lại không đổi khi xoay,
+  nên descriptor của các chấm khác nhau rất gần nhau và dễ khớp nhầm sang chấm khác: nếu bỏ qua
+  bước lọc, mọi điểm đều có một cặp (kể cả điểm không xuất hiện trong ảnh 2), số đường nối rất
+  nhiều, chồng chéo, tỉ lệ cặp sai cao -> ước lượng homography/ghép ảnh dễ sai hoặc RANSAC phải
+  chạy lâu hơn.
 - Khi áp dụng Ratio Test, số cặp giảm mạnh nhưng độ chính xác tăng lên rõ rệt. Ratio càng
   nhỏ càng chặt (ít cặp, chính xác hơn), ratio lớn thì giữ nhiều cặp nhưng lẫn nhiễu;
   0.7-0.8 là mức cân bằng thường dùng.

@@ -10,7 +10,8 @@ FOLDER = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(FOLDER, "output")
 os.makedirs(OUT, exist_ok=True)
 
-img = cv2.imread(os.path.join(FOLDER, "2026-07-02-18-32-12-576x765.jpg"))
+# cả bài 4 dùng cặp ảnh IMG_2817 / IMG_2818
+img = cv2.imread(os.path.join(FOLDER, "IMG_2817.jpg"))
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 h, w = gray.shape
 
@@ -77,31 +78,41 @@ lines.append(f"ORB({len(kp_s)}) : {len(kp_o2)} kp, descriptor {des_o2.shape} {de
 lines.append(f"=> Cùng số điểm, ORB nhanh hơn SIFT khoảng {t_s / t_o2:.1f} lần")
 
 # ================= c. Vai trò Ratio Test =================
-src = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
-dst = np.float32([[0.10 * w, 0.05 * h], [0.95 * w, 0.0], [0.85 * w, 0.95 * h], [0.0, 0.85 * h]])
-H_true = np.vstack([cv2.getRotationMatrix2D((w / 2, h / 2), 20, 0.85), [0, 0, 1]]) \
-    @ cv2.getPerspectiveTransform(src, dst)
-img2 = cv2.convertScaleAbs(cv2.warpPerspective(img, H_true, (w, h)), alpha=1.1, beta=-15)
-g2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+# dùng cặp ảnh của Bài 3
+g1 = cv2.imread(os.path.join(FOLDER, "IMG_2817.jpg"), cv2.IMREAD_GRAYSCALE)
+g2 = cv2.imread(os.path.join(FOLDER, "IMG_2818.jpg"), cv2.IMREAD_GRAYSCALE)
 
 orb = cv2.ORB_create(2000)
-k1, d1 = orb.detectAndCompute(gray, None)
+k1, d1 = orb.detectAndCompute(g1, None)
 k2, d2 = orb.detectAndCompute(g2, None)
 knn = cv2.BFMatcher(cv2.NORM_HAMMING).knnMatch(d1, d2, k=2)
 
 
+def pts(matches):
+    return (np.float32([k1[m.queryIdx].pt for m in matches]),
+            np.float32([k2[m.trainIdx].pt for m in matches]))
+
+
+# không có phép biến đổi thật: ước lượng H tham chiếu bằng RANSAC trên các cặp qua Ratio Test 0.75,
+# rồi tinh chỉnh bằng bình phương tối thiểu trên các inlier
+ref = [m for m, n in (p for p in knn if len(p) == 2) if m.distance < 0.75 * n.distance]
+p1, p2 = pts(ref)
+H_ref, mask = cv2.findHomography(p1, p2, cv2.RANSAC, 5.0)
+inl = mask.ravel().astype(bool)
+H_ref, _ = cv2.findHomography(p1[inl], p2[inl], 0)
+
+
 def correct_ratio(matches, tol=5.0):
-    """Biết homography thật nên đếm chính xác số cặp đúng (sai số chiếu <= tol px)."""
+    """Đếm số cặp đúng: sai số chiếu qua homography tham chiếu <= tol px."""
     if not matches:
         return 0, 0.0
-    p1 = np.float32([k1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-    p2 = np.float32([k2[m.trainIdx].pt for m in matches])
-    err = np.linalg.norm(cv2.perspectiveTransform(p1, H_true).reshape(-1, 2) - p2, axis=1)
+    a, b = pts(matches)
+    err = np.linalg.norm(cv2.perspectiveTransform(a.reshape(-1, 1, 2), H_ref).reshape(-1, 2) - b, axis=1)
     n = int((err <= tol).sum())
     return n, n / len(matches) * 100
 
 
-lines.append("\n===== c. Ratio Test (ORB + BFMatcher, đếm cặp đúng bằng homography thật) =====")
+lines.append("\n===== c. Ratio Test (IMG_2817/IMG_2818, ORB + BFMatcher, đếm cặp đúng bằng homography tham chiếu) =====")
 ratios = [None, 0.9, 0.8, 0.75, 0.7, 0.6, 0.5]
 stats = []
 for r in ratios:
@@ -183,10 +194,11 @@ c) Vai trò của Ratio Test (Lowe)
 - Với mỗi điểm, so sánh khoảng cách tới láng giềng gần nhất (d1) và gần nhì (d2). Nếu
   d1 < ratio * d2 thì cặp khớp được xem là "đặc trưng riêng biệt", được giữ lại; nếu d1 ~ d2
   thì điểm đó mơ hồ (nhiều chỗ trong ảnh trông giống nhau) và bị loại.
-- Ảnh bàn cờ có cấu trúc lặp lại (các ô giống nhau) nên rất nhiều cặp khớp nhầm sang ô bên
-  cạnh: nếu bỏ qua bước lọc, mọi điểm đều có một cặp (kể cả điểm không xuất hiện trong ảnh
-  2), số đường nối rất nhiều, chồng chéo, tỉ lệ cặp sai cao -> ước lượng homography/ghép ảnh
-  dễ sai hoặc RANSAC phải chạy lâu hơn.
+- Cảnh IMG_2817/IMG_2818 có rất nhiều chấm tròn giống nhau, hình tròn lại không đổi khi xoay,
+  nên descriptor của các chấm khác nhau rất gần nhau và dễ khớp nhầm sang chấm khác: nếu bỏ qua
+  bước lọc, mọi điểm đều có một cặp (kể cả điểm không xuất hiện trong ảnh 2), số đường nối rất
+  nhiều, chồng chéo, tỉ lệ cặp sai cao -> ước lượng homography/ghép ảnh dễ sai hoặc RANSAC phải
+  chạy lâu hơn.
 - Khi áp dụng Ratio Test, số cặp giảm mạnh nhưng độ chính xác tăng lên rõ rệt. Ratio càng
   nhỏ càng chặt (ít cặp, chính xác hơn), ratio lớn thì giữ nhiều cặp nhưng lẫn nhiễu;
   0.7-0.8 là mức cân bằng thường dùng.
